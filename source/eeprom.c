@@ -1,7 +1,7 @@
 #include <xc.h>
 
 #include "eeprom.h"
-#include <EEP.h>
+#include <plib/EEP.h>
 
 //==================================
 // EEPROM read routine
@@ -103,11 +103,11 @@ UINT32 readUINT32EEPROM(unsigned char Address) {
 
 
 void eraseEEPROM() {
-    unsigned char i;
+    
+    UINT16 i;
 
     for (i=0; i<256; i++) {
         writeEEPROM(i,0xFF);
     }
-
 
 }

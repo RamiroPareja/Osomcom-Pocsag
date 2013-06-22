@@ -19,12 +19,6 @@ void rs232_interruptStop(void);
 void rs232_ISR(void);
 
 void rs232_processLoop(void);
-void rs232_processBuffer(void);
-void rs232_processCommand(void);
-void rs232_processCommandSend(void);
-void rs232_processCommandConfig(void);
-void rs232_processCommandSaveConfig(void);
-void rs232_processCommandLoadConfig(void);
-void rs232_processCommandDefaultConfig(void);
+
 
 #endif

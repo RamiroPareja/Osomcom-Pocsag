@@ -1,0 +1,46 @@
+GUIA DE ESTILO PARA EL PROYECTO
+
+En adelante, se intentara seguir las siguientes convenciones:
+
+
+NAMING:
+
+- Functions
+
+  Function names should start with the name of the module they belong
+  followed with a _ and the proper function name.
+  The "proper" name should be a verb, in mixed case with the first letter lowercase, with the first
+  letter of each internal word capitalized.
+
+  Ex:
+     module1_run();
+     module2_runFast();
+     module3_getBackground();
+
+
+
+- Variables
+
+  Mixed case with a lowercase first letter. Internal words start with capital
+  letters. Variable names should not start with underscore _ or dollar sign $
+  characters, even though both are allowed.
+  Global variable names should start with the name of the module they belong
+  followed with a _ and the proper variable name
+
+  Variable names should be short yet meaningful. The choice of a variable name
+  should be mnemonic- that is, designed to indicate to the casual observer the
+  intent of its use. One-character variable names should be avoided except for
+  temporary "throwaway" variables. Common names for temporary variables are i,
+  j, k, m, and n for integers; c, d, and e for characters.
+
+  Ex:
+     extern int      module_i;
+     char            c;
+     float           myWidth;
+
+
+
+
+- Constants
+
+  Should be all uppercase with words separated by underscores ("_").

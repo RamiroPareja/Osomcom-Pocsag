@@ -2,7 +2,7 @@
 #include "io.h"
 
 
-void led_processLoop(void) {
+void io_processLoop(void) {
 
     led_blinkStatus();
 

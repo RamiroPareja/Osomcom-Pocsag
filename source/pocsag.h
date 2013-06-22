@@ -20,7 +20,7 @@
 
 // Los codewords se transmiten MSB-first.
 
-#define NUM_BATCHES			3		// Numero de batches que podemos transmitir
+#define NUM_BATCHES			2		// Numero de batches que podemos transmitir
 #define MAX_MESSAGE_FRAMES	((NUM_BATCHES*2)-2) // Num. maximo de frames de mensaje que podemos enviar 
 #define MAX_CHARS_NUMERIC_MSG	(MAX_MESSAGE_FRAMES*5) // Num. maximo de caracteres numericos que podemos mandar
 #define SIZE_BATCH_BUFFER	NUM_BATCHES*17*4	// Numero de bytes que ocupa el buffer donde almacenamos los batches
@@ -97,11 +97,13 @@ typedef enum MsgType {
 extern BYTE batchBuffer[NUM_BATCHES*sizeof(Batch_t)];
 
 void pocsag_initBatch(Batch_t *);
+void pocsag_copyFrame2Batch(Frame_t *frame, Batch_t *batch);
+void pocsag_copyCWs2Batch(CodeWord *codeword_H, CodeWord *codeword_L, Batch_t *batch);
 void pocsag_initBatchBuffer(void);
 void formatAddressFrame(Batch_t *, UINT32, UINT8);
 void pocsag_formatNumericMessageCodeWord(CodeWord *, char *);
 UINT16 pocsag_createAlphaMsg(UINT32, char *);
-UINT16 pocsag_createNumericMsg(UINT32 address, char *number);
+UINT16 pocsag_createNumericMsg(UINT32 address, char *number,BOOL massSend);
 UINT16 pocsag_createIdleMsg(void);
 void pocsag_calculate_CRC(CodeWord *);
 void pocsag_encodeNumericMessage(char *);

@@ -4,7 +4,7 @@
 #include <stdio.h>
 
 #include "rs232.h"
-
+#include "ui.h"
 #include "pocsag.h"
 #include "pocsagPhy.h"
 #include "GenericTypeDefs.h"
@@ -17,9 +17,7 @@ volatile char rs232_rxByte;
 
 char rs232Buffer[RS232_BUFFER_SIZE];
 char rs232BufferIndex;
-char *rs232Comando;
-char *rs232Parametro1;
-char *rs232Parametro2;
+
 
 void rs232_init(void) {
 
@@ -111,7 +109,9 @@ void rs232_ISR(void) {
 
 void rs232_processLoop(void) {
 
-
+    char *comando;
+    char *parametro1;
+    char *parametro2;
 
 
     if (rs232_dataReceived_flag == 1) {        
@@ -127,8 +127,8 @@ void rs232_processLoop(void) {
         if (rs232_rxByte == '\n') {
 
             rs232Buffer[rs232BufferIndex] = '\0';   // Hay que poner el 0 en el ultimo caracter para que STRTOK funcione
-            rs232_processBuffer();
-            rs232_processCommand();
+            ui_processBuffer(rs232Buffer, &comando, &parametro1, &parametro2);
+            ui_processCommand(comando, parametro1, parametro2);
 
             rs232BufferIndex = 0;                   // "borramos" el buffer
 
@@ -138,112 +138,4 @@ void rs232_processLoop(void) {
         
     }
 
-}
-
-void rs232_processBuffer(void) {
-
-    // Procesamos la cadena recibida
-
-
-    rs232Comando = strtok(rs232Buffer," \r\n");
-    rs232Parametro1 = strtok(NULL," \r\n");
-    rs232Parametro2 = strtok(NULL," \r\n");
-
-}
-
-void rs232_processCommand(void) {
-
-    
-//    if (rs232Comando == NULL)       // No hay comando. Salimos
-//        return;
-
-    //if (strcmppgm2ram(rs232Comando, "SENT") == 0)
-    if (strcmp(rs232Comando, "SEND") == 0) {
-        rs232_processCommandSend();
-        return;
-    } else if (strcmp(rs232Comando, "CONFIG") == 0) {
-        rs232_processCommandConfig();
-        return;
-    } else if (strcmp(rs232Comando, "SAVECONFIG") == 0) {
-        rs232_processCommandSaveConfig();
-        return;
-    } else if (strcmp(rs232Comando, "LOADCONFIG") == 0) {
-        rs232_processCommandLoadConfig();
-        return;
-    } else if (strcmp(rs232Comando, "DEFAULTCONFIG") == 0) {
-        rs232_processCommandDefaultConfig();
-        return;
-    }
-
-    rs232_putString("Comando no reconocido\r\n");
-
-}
-
-void rs232_processCommandSend(void) {
-
-    UINT32 tmp;
-
-    if (rs232Parametro1 == NULL || rs232Parametro2 == NULL) {
-        rs232_putString("Formato: SEND RIC MENSAJE\r\n");
-        return;
-    }
-
-    tmp =  atol(rs232Parametro1);
-    pocsagPhy_sendMsg(pocsag_createNumericMsg(tmp, rs232Parametro2));
-}
-
-
-void rs232_processCommandConfig(void) {
-
-    UINT32 tmp;
-    char tmpBuffer[10];
-
-    if (rs232Parametro1 == NULL || rs232Parametro2 == NULL) {
-        rs232_putString("Formato: CONFIG PARAMETRO VALOR\r\n\r\nConfiguracion actual:\r\n");
-        rs232_putString("   FRECUENCIA: ");
-        sprintf(tmpBuffer,"%ld", config_frequency);
-        rs232_putStringRAM(tmpBuffer);
-        rs232_putString("\r\n   DESVIACION: ");
-        sprintf(tmpBuffer,"%d", config_deviation);
-        rs232_putStringRAM(tmpBuffer);
-        rs232_putString("\r\n   BAUDIOS: ");
-        sprintf(tmpBuffer,"%d", config_bauds);
-        rs232_putStringRAM(tmpBuffer);
-        rs232_putString("\r\n   POTENCIA: ");
-        sprintf(tmpBuffer,"%d", config_power);
-        rs232_putStringRAM(tmpBuffer);
-        rs232_putString("\r\n\r\n");
-
-        return;
-    }
-
-    // Comprobamos el parametro y lo actualizamos
-
-    tmp = atol(rs232Parametro2);
-
-    if (strcmp(rs232Parametro1, "FRECUENCIA") == 0) {
-        config_frequency = tmp;
-    } else if (strcmp(rs232Parametro1, "DESVIACION") == 0) {
-        config_deviation = (UINT16) tmp;
-    } else if (strcmp(rs232Parametro1, "BAUDIOS") == 0) {
-        config_bauds = (UINT16) tmp;
-    } else if (strcmp(rs232Parametro1, "POTENCIA") == 0) {
-       config_power = (UINT8) tmp;
-    } else {
-        rs232_putString("Parametro desconocido\r\n");
-    }
- 
-}
-
-
-void rs232_processCommandSaveConfig(void) {
-    config_save();
-}
-
-void rs232_processCommandLoadConfig(void) {
-    config_load();
-}
-
-void rs232_processCommandDefaultConfig(void) {
-    config_setDefault();
 }

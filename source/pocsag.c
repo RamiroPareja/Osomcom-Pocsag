@@ -39,6 +39,37 @@ void pocsag_initBatch(Batch_t *batch) {
 
 }
 
+// TODO: Esta copia de codewords, hacerlo a nivel de frames.
+// Poner un UNION del struct frame_t con un UINT64
+void pocsag_copyFrame2Batch(Frame_t *frame, Batch_t *batch) {
+
+    BYTE i;
+
+    batch->sc.dword = SYNCH_CODEWORD;
+
+    for (i = 0; i < 8; i++) {
+        batch->frames[i].codeword_L.dword = frame->codeword_L.dword;
+        batch->frames[i].codeword_H.dword = frame->codeword_H.dword;
+    }
+
+}
+
+// Muy parecida a la anterior, pero si algun codeword es NULL, no lo copia
+void pocsag_copyCWs2Batch(CodeWord *codeword_H, CodeWord *codeword_L, Batch_t *batch) {
+
+    BYTE i;
+
+    batch->sc.dword = SYNCH_CODEWORD;
+
+    for (i = 0; i < 8; i++) {
+        if (codeword_L != NULL)
+            batch->frames[i].codeword_L.dword = codeword_L->dword;
+
+        if (codeword_H != NULL)
+            batch->frames[i].codeword_H.dword = codeword_H->dword;
+    }
+}
+
 /*
 // Funcion que inicializa todo el array de buffers con idles
 
@@ -207,12 +238,11 @@ UINT16 pocsag_createAlphaMsg(UINT32 address, char *string) {
 
 // Devuelve el numero de bytes que ocupa el mensaje en el buffer
 
-UINT16 pocsag_createNumericMsg(UINT32 address, char *number) {
+UINT16 pocsag_createNumericMsg(UINT32 address, char *number, BOOL massSend) {
 
     BYTE i;
-    INT8 digitsToTX = strlen(number);
-    //INT8 digitsToTX = 5;
-    BYTE frameNumber = 7 - (address & 0x00000007);
+    INT8 digitsToTX = strlen(number);    
+    BYTE frameNumber;
     //BYTE frameNumber = address & 0x00000007;    Invertimos el orden en el que
                               // Se rellena el array para poder volcar los bytes
     CodeWord *cw;
@@ -220,50 +250,51 @@ UINT16 pocsag_createNumericMsg(UINT32 address, char *number) {
     pocsag_initBatch(&batchTmp);
     ptrBatchBuffer = batchBuffer;
 
+
+
+
+    frameNumber = 7 - (address & 0x00000007);
     cw = &(batchTmp.frames[frameNumber].codeword_H);
-//    cw = &(batchTmp.frames[0].codeword_H);
-//    cw = &(batchTmp.frames[1].codeword_H);
-//    cw = &(batchTmp.frames[2].codeword_H);
-//    cw = &(batchTmp.frames[3].codeword_H);
-//    cw = &(batchTmp.frames[4].codeword_H);
-//    cw = &(batchTmp.frames[5].codeword_H);
-//    cw = &(batchTmp.frames[6].codeword_H);
-//    cw = &(batchTmp.frames[7].codeword_H);
-
-
-
     pocsag_formatAddressCodeWord(cw, address, FUNCTION_NUMERIC);
+    cw = &(batchTmp.frames[frameNumber].codeword_L);
+    pocsag_formatNumericMessageCodeWord(cw, number); // Formateo de los 5 primeros digitos
 
-
-    pocsag_formatNumericMessageCodeWord(&(batchTmp.frames[frameNumber].codeword_L), number); // Formateo de los 5 primeros digitos
-//    pocsag_formatNumericMessageCodeWord(&(batchTmp.frames[0].codeword_L), number); // Formateo de los 5 primeros digitos
-//    pocsag_formatNumericMessageCodeWord(&(batchTmp.frames[1].codeword_L), number); // Formateo de los 5 primeros digitos
-//    pocsag_formatNumericMessageCodeWord(&(batchTmp.frames[2].codeword_L), number); // Formateo de los 5 primeros digitos
-//    pocsag_formatNumericMessageCodeWord(&(batchTmp.frames[3].codeword_L), number); // Formateo de los 5 primeros digitos
-//    pocsag_formatNumericMessageCodeWord(&(batchTmp.frames[4].codeword_L), number); // Formateo de los 5 primeros digitos
-//    pocsag_formatNumericMessageCodeWord(&(batchTmp.frames[5].codeword_L), number); // Formateo de los 5 primeros digitos
-//    pocsag_formatNumericMessageCodeWord(&(batchTmp.frames[6].codeword_L), number); // Formateo de los 5 primeros digitos
-//    pocsag_formatNumericMessageCodeWord(&(batchTmp.frames[7].codeword_L), number); // Formateo de los 5 primeros digitos
+    if (massSend) {
+        // Enviamos el mismo mensaje a los 8 RIC del batch
+        pocsag_copyFrame2Batch(&(batchTmp.frames[frameNumber]), &batchTmp);
+    }
 
 
     digitsToTX -=5;
 
     pocsag_dumpBatch2Buffer();
 
-    for (i = 1; i < 2; i++) {
+    for (i = 1; i < NUM_BATCHES; i++) {
 
         pocsag_initBatch(&batchTmp);
 
         if (digitsToTX>0) {
             number += 5;
-            pocsag_formatNumericMessageCodeWord(&(batchTmp.frames[frameNumber].codeword_H), number);
             digitsToTX -=5;
+
+            pocsag_formatNumericMessageCodeWord(&(batchTmp.frames[frameNumber].codeword_H), number);
+
+            if (massSend) {
+                pocsag_copyCWs2Batch(&(batchTmp.frames[frameNumber].codeword_H),NULL, &batchTmp);
+            }
+            
         }
 
         if (digitsToTX>0) {
             number += 5;
-            pocsag_formatNumericMessageCodeWord(&(batchTmp.frames[frameNumber].codeword_L), number);
             digitsToTX -=5;
+
+            pocsag_formatNumericMessageCodeWord(&(batchTmp.frames[frameNumber].codeword_L), number);
+
+            if (massSend) {
+                pocsag_copyCWs2Batch(NULL,&(batchTmp.frames[frameNumber].codeword_L), &batchTmp);
+            }
+            
         }
 
     pocsag_dumpBatch2Buffer();

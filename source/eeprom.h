@@ -1,5 +1,3 @@
-
-
 #ifndef EEPROM_H
 #define	EEPROM_H
 
@@ -8,6 +6,12 @@
 #define EEADR_CONFIG_DEVIATION 5
 #define EEADR_CONFIG_POWER 7
 #define EEADR_CONFIG_BAUDS 9
+
+#define EEADR_CONFIG_MASS_SEND_CURRENT_RIC 11
+#define EEADR_CONFIG_MASS_SEND_STOP_RIC 15
+#define EEADR_CONFIG_MASS_SEND_SAVE_FREQ 19
+#define EEADR_CONFIG_MASS_SEND_DELAY 21
+
 
 unsigned char readEEPROM(unsigned char Address);
 void writeEEPROM(unsigned char Address, unsigned char Data);

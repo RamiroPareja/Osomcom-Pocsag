@@ -13,7 +13,6 @@
 /** INCLUDES *******************************************************/
 
 #include "GenericTypeDefs.h"
-//#include "Common/Compiler.h"
 
 #include <xc.h>
 
@@ -24,6 +23,7 @@
 #include "interrupts.h"
 #include "pocsagPhy.h"
 #include "pocsag.h"
+#include "massSend.h"
 
 
 
@@ -100,9 +100,10 @@ void main(void) {
     // Process Loop
     while (1) {
 
-        led_processLoop();
+        io_processLoop();
         pocsagPhy_processLoop();
         rs232_processLoop();
+        massSend_processLoop();
       
     }
 
@@ -121,5 +122,6 @@ void initSystem(void) {
     config_init();
     pocsagPhy_init();
     interrupts_init();
+    void massSend_init(void);
 
 }

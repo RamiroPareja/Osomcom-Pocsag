@@ -12,7 +12,9 @@
 
 volatile UINT8 pocsagPhy_readyToTX_flag;
 volatile UINT8 pocsagPhy_radioTX_flag;
-//UINT8 pocsagPhy__flag;
+
+UINT8 pocsagPhy_busy;       // Indica si esta ocupado el modulo
+
 PocsagPhy_state pocsagPhy_state;
 
 UINT16 contador;
@@ -20,13 +22,15 @@ UINT8 contadorBits;
 
 UINT16 numBytesTX;
 
+UINT8 testType;
+
 BYTE *ptrBuffer;
 
-UINT32 addressCounter = RIC;
 
 void pocsagPhy_SM_synchTX(void);
 void pocsagPhy_SM_BatchTX(void);
 void pocsagPhy_SM_StopTX(void);
+void pocsagPhy_SM_test(void);
 
 void pocsagPhy_interruptInit(void) {
 
@@ -85,6 +89,8 @@ void pocsagPhy_init(void) {
     RADIO_DATA = 0;
     pocsagPhy_state = IDLE;
 
+    pocsagPhy_busy = 0;
+
     adf7012_init();
 
 }
@@ -94,19 +100,35 @@ void pocsagPhy_sendMsg(UINT16 numBytes) {
     if (pocsagPhy_state != IDLE)
         return;
 
-    pocsagPhy_init();
-    pocsagPhy_readyToTX_flag = 0;
-    pocsagPhy_radioTX_flag= 0;
-    RADIO_DATA = 0;
-
+    pocsagPhy_init();    
+    pocsagPhy_busy = 1;
     numBytesTX = numBytes;
 
     pocsagPhy_state = SYNCH_TX;
     contador = PREAMBLE_LENGTH;
 
-
-
 }
+
+void pocsagPhy_test(UINT8 tstType) {
+    if (pocsagPhy_state != IDLE)
+        return;
+
+    pocsagPhy_init();
+    pocsagPhy_busy = 1;
+
+    pocsagPhy_state = TEST;
+    testType = tstType;
+}
+
+void pocsagPhy_stopTest() {
+
+    RADIO_DATA = 0;
+    adf7012_powerOff();
+    pocsagPhy_busy = 0;
+    pocsagPhy_state = IDLE;
+}
+
+
 
 void pocsagPhy_processLoop() {
 
@@ -126,6 +148,9 @@ void pocsagPhy_processLoop() {
             pocsagPhy_SM_StopTX();
             break;
 
+        case TEST:
+            pocsagPhy_SM_test();
+            break;
     }
 
 }
@@ -219,19 +244,9 @@ void pocsagPhy_SM_StopTX(void) {
 
     adf7012_powerOff();
 
+    pocsagPhy_busy = 0;
     pocsagPhy_state = IDLE;
 
-
-
-    if (addressCounter>RIC_end)
-        return;
-    addressCounter += 8;
-    
-
-    //pocsagPhy_sendMsg(pocsag_createIdleMsg());
-    //pocsagPhy_sendMsg(pocsag_createNumericMsg(1519073, borrar));
-    //pocsagPhy_sendMsg(pocsag_createNumericMsg(addressCounter, borrar));
-    //pocsagPhy_sendMsg(pocsag_createAlphaMsg(1111709, borrar));
 }
 
 
@@ -239,20 +254,23 @@ void pocsagPhy_SM_StopTX(void) {
 // Funcion que envia una trama infinita de unos y ceros.
 // Util para analizar con el RTL-SDR o un espectrografo si la desviacion de la
 // modulacion FSK es la correcta
-//
-// Antes de invocarla debemos haber inicializado correctamente las interrupciones
 
-void pocsagPhy_test(void) {
+void pocsagPhy_SM_test(void) {
 
-    while (1) {
 
-        if (!pocsagPhy_readyToTX_flag)
-            continue;
+    if (!pocsagPhy_readyToTX_flag)
+        return;
 
-        pocsagPhy_readyToTX_flag = 0;
+    pocsagPhy_readyToTX_flag = 0;
+
+    if (testType == 0)
+        pocsagPhy_radioTX_flag = 0;
+    else if (testType == 1)
+        pocsagPhy_radioTX_flag = 1;
+    else
         pocsagPhy_radioTX_flag = !pocsagPhy_radioTX_flag;
 
-    }
+   
 
 }
 
