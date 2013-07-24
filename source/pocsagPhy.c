@@ -9,6 +9,7 @@
 #include "GenericTypeDefs.h"
 #include "io.h"
 #include "tools.h"
+#include "rs232.h"
 
 volatile UINT8 pocsagPhy_readyToTX_flag;
 volatile UINT8 pocsagPhy_radioTX_flag;
@@ -19,11 +20,8 @@ PocsagPhy_state pocsagPhy_state;
 
 UINT16 contador;
 UINT8 contadorBits;
-
 UINT16 numBytesTX;
-
 UINT8 testType;
-
 BYTE *ptrBuffer;
 
 
@@ -43,7 +41,7 @@ void pocsagPhy_interruptInit(void) {
     T0CONbits.T0PS = 0;
 
 
-    TMR0 = TMR0_BAUDRATE;
+    TMR0 = config.tmr0Bauds;
 
     TMR0IP = 1; // Asignamos a la interrupcion TMR0 prioridad ALTA
     TMR0IF = 0;
@@ -64,13 +62,13 @@ void pocsagPhy_ISR(void) {
         return;
     }
 
-    TMR0 = TMR0_BAUDRATE + 44;
+    TMR0 = config.tmr0Bauds;
 
     TMR0IF = 0;
 
     pocsagPhy_readyToTX_flag = 1;
 
-#ifdef POCSAG_INVERTED
+#ifndef POCSAG_INVERTED
     RADIO_DATA = !pocsagPhy_radioTX_flag;
     GP0 = !pocsagPhy_radioTX_flag;
 #else
@@ -82,7 +80,7 @@ void pocsagPhy_ISR(void) {
 
 }
 
-void pocsagPhy_init(void) {
+BOOL pocsagPhy_init(void) {
 
     pocsagPhy_readyToTX_flag = 0;
     pocsagPhy_radioTX_flag= 0;
@@ -91,7 +89,7 @@ void pocsagPhy_init(void) {
 
     pocsagPhy_busy = 0;
 
-    adf7012_init();
+    return adf7012_init();
 
 }
 
@@ -100,7 +98,11 @@ void pocsagPhy_sendMsg(UINT16 numBytes) {
     if (pocsagPhy_state != IDLE)
         return;
 
-    pocsagPhy_init();    
+    if (pocsagPhy_init()) {
+        rs232_putString("Init error");
+        return;
+    }
+
     pocsagPhy_busy = 1;
     numBytesTX = numBytes;
 
@@ -109,11 +111,16 @@ void pocsagPhy_sendMsg(UINT16 numBytes) {
 
 }
 
+#ifndef DEBUG_MODE
+
 void pocsagPhy_test(UINT8 tstType) {
     if (pocsagPhy_state != IDLE)
         return;
 
-    pocsagPhy_init();
+    if (pocsagPhy_init()) {
+        rs232_putString("Init error");
+        return;
+    }
     pocsagPhy_busy = 1;
 
     pocsagPhy_state = TEST;
@@ -128,7 +135,7 @@ void pocsagPhy_stopTest() {
     pocsagPhy_state = IDLE;
 }
 
-
+#endif
 
 void pocsagPhy_processLoop() {
 
@@ -148,9 +155,11 @@ void pocsagPhy_processLoop() {
             pocsagPhy_SM_StopTX();
             break;
 
+#ifndef DEBUG_MODE
         case TEST:
             pocsagPhy_SM_test();
             break;
+#endif
     }
 
 }
@@ -184,25 +193,16 @@ void pocsagPhy_SM_BatchTX(void) {
 
     pocsagPhy_readyToTX_flag = 0;
 
-    // TODO: Debemos hacer que el bit de datos de la trama de sincronizacion
-    // TARDE EXACTAMENTE LO MISMO que la salida de datos del batch.
-    //
-    // El IF que tenemos abajo hace que a veces tarde mas y a veces menos el
-    // dato en salir.
-    //
-    // Solucion buena: El dato se saca en la siguiente interrupcion del TMR0.
-    //
-    // Solucion regular: Ecualizar los tiempos de salida en ambas funciones
 
-    if (*ptrBuffer & 0x80)
+    if (*ptrBuffer & 0x80) {
         pocsagPhy_radioTX_flag = 1;
-    else
+    }
+    else {
         pocsagPhy_radioTX_flag = 0;
+    }
 
     *ptrBuffer <<= 1;
     contadorBits++;
-
-
 
     if (contadorBits >= 8) {
         contadorBits = 0;
@@ -210,7 +210,6 @@ void pocsagPhy_SM_BatchTX(void) {
 
         if (numBytesTX == 0) {
 
-            //adf7012_powerOff();
             pocsagPhy_state = STOP_TX;
             contadorBits = 0;
             return;
@@ -224,10 +223,6 @@ void pocsagPhy_SM_BatchTX(void) {
 
 void pocsagPhy_SM_StopTX(void) {
 
-    char borrar[] = {'1','3','3','7','0'};
-    //char borrar[] = {'3','1','3','3','7','1','3','3','7',0};
-    //char borrar[] = {'H','A',0};
-
     if (!pocsagPhy_readyToTX_flag)
         return;
 
@@ -238,7 +233,6 @@ void pocsagPhy_SM_StopTX(void) {
     if (contadorBits<=1)
         return;
 
-    
     pocsagPhy_radioTX_flag= 0;
     RADIO_DATA = 0;
 
@@ -254,7 +248,7 @@ void pocsagPhy_SM_StopTX(void) {
 // Funcion que envia una trama infinita de unos y ceros.
 // Util para analizar con el RTL-SDR o un espectrografo si la desviacion de la
 // modulacion FSK es la correcta
-
+#ifndef DEBUG_MODE
 void pocsagPhy_SM_test(void) {
 
 
@@ -268,9 +262,7 @@ void pocsagPhy_SM_test(void) {
     else if (testType == 1)
         pocsagPhy_radioTX_flag = 1;
     else
-        pocsagPhy_radioTX_flag = !pocsagPhy_radioTX_flag;
-
-   
+        pocsagPhy_radioTX_flag = !pocsagPhy_radioTX_flag;  
 
 }
-
+#endif

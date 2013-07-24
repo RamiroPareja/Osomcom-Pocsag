@@ -8,7 +8,20 @@
 
 Adf7012Config_t adf7012Config;
 
-void adf7012_init() {
+void adf7012_initRegisters(void);
+void adf7012_configure(BYTE, BYTE, BYTE, BYTE);
+void adf7012_configure24(BYTE, BYTE, BYTE);
+void adf7012_configureRegisters(void);
+void adf7012_setModulation(BYTE);
+void adf7012_setFrequency(UINT32);
+void adf7012_setFSKDeviation(UINT32);
+void adf7012_setPower(BYTE);
+void adf7012_setMuxout(BYTE);
+
+
+BOOL adf7012_init() {
+
+    UINT8 i;
 
     adf7012_powerOn();
 
@@ -20,9 +33,9 @@ void adf7012_init() {
     adf7012_initRegisters();
 
     adf7012_setModulation(MODULATION_FSK);
-    adf7012_setFrequency(config_frequency);
-    adf7012_setFSKDeviation(config_deviation);
-    adf7012_setPower(config_power);
+    adf7012_setFrequency(config.frequency);
+    adf7012_setFSKDeviation(config.deviation);
+    adf7012_setPower(config.power);
     adf7012_setMuxout(MUXOUT_LOGIC_DIGITAL_LOCKOUT);
 
     adf7012Config.register0bits.vcoAdjust_L = 0;
@@ -32,14 +45,19 @@ void adf7012_init() {
     adf7012_configureRegisters();
 
 
-    //ACTIVAR!
     // Esperamos al que lockup del pll antes de activar el PA
+    i=0;
     while (MUXOUT == 0) {
-
+        _delay(40000);
+        i++;
+        if (i==255)
+            return TRUE;    //TIMEOUT. El PLL no puede hacer el lockup
     }
+
     adf7012Config.register3bits.paEnable = 1;
     adf7012_configureRegisters();
 
+    return FALSE;
 }
 
 // Setea los registros de configuracion a algo conocido

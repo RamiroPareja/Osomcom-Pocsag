@@ -1,6 +1,7 @@
 #include <xc.h>
 #include "io.h"
 
+inline void led_blinkStatus(void);
 
 void io_processLoop(void) {
 
@@ -8,7 +9,7 @@ void io_processLoop(void) {
 
 }
 
-void led_blinkStatus(void) {
+inline void led_blinkStatus(void) {
 
     static unsigned int i = 0;
 

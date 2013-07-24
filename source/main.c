@@ -39,7 +39,7 @@
 #pragma config WDTEN  = OFF
 #pragma config WDTPS  = 32768
 #pragma config HFOFST = OFF
-#pragma config MCLRE  = OFF
+#pragma config MCLRE  = ON
 #pragma config STVREN = ON
 #pragma config LVP    = OFF
 #pragma config BBSIZ  = OFF
@@ -59,9 +59,6 @@
 
 
 
-/** V A R I A B L E S ********************************************************/
-
-
 /** P R I V A T E  P R O T O T Y P E S ***************************************/
 void initSystem(void);
 
@@ -78,24 +75,10 @@ void initSystem(void);
  * Note:            None
  *****************************************************************************/
 void main(void) {
-
-    //char numero[] = {'3','1','3','3','7','1','3','3','7',0};
-    char numero[] = {'1','3','3','7','0'};
-    //char numero[] = {'0','1','7','2','4'};
-
+ 
     initSystem();
-
      
-    rs232_putString("OsomCom POCSAG 0.1\nRamiro Pareja (ramiropareja@t4f.org)\n");
-    
-
-
-    //pocsagPhy_sendMsg(pocsag_createNumericMsg(1519073, numero));
-    ////pocsagPhy_sendMsg(pocsag_createNumericMsg(RIC, numero));
-    //pocsagPhy_sendMsg(pocsag_createAlphaMsg(1111709, numero));
-    //pocsagPhy_sendMsg(pocsag_createIdleMsg());
-
-    //pocsagPhy_test();
+    rs232_putString("OsomCom POCSAG 0.3\r\nramiropareja@t4f.org 7/2013\r\n");
 
     // Process Loop
     while (1) {
@@ -103,10 +86,12 @@ void main(void) {
         io_processLoop();
         pocsagPhy_processLoop();
         rs232_processLoop();
+
+#ifndef NO_MASS_SEND
         massSend_processLoop();
+#endif
       
     }
-
 
 }
 
@@ -120,8 +105,10 @@ void initSystem(void) {
     initPorts();
     rs232_init();
     config_init();
-    pocsagPhy_init();
     interrupts_init();
-    void massSend_init(void);
+
+#ifndef NO_MASS_SEND
+    massSend_init();
+#endif
 
 }

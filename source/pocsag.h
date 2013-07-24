@@ -5,6 +5,7 @@
 
 #define FUNCTION_NUMERIC 0
 #define FUNCTION_ALPHA 3
+#define FUNCTION_IDLE 10
 
 // Formato de un CodeWord de direccion:
 // |31 | 30          13 | 12     11 | 10       1 |    0    |
@@ -21,16 +22,12 @@
 // Los codewords se transmiten MSB-first.
 
 #define NUM_BATCHES			2		// Numero de batches que podemos transmitir
-#define MAX_MESSAGE_FRAMES	((NUM_BATCHES*2)-2) // Num. maximo de frames de mensaje que podemos enviar 
-#define MAX_CHARS_NUMERIC_MSG	(MAX_MESSAGE_FRAMES*5) // Num. maximo de caracteres numericos que podemos mandar
-#define SIZE_BATCH_BUFFER	NUM_BATCHES*17*4	// Numero de bytes que ocupa el buffer donde almacenamos los batches
-#define SIZE_BATCH              NUM_BATCHES*17*4	// Numero de bytes que ocupa el buffer donde almacenamos los batches
 
-#define PREAMBLE_LENGTH (576)+2+150
+#define PREAMBLE_LENGTH 576 + 2
 
 #define SYNCH_CODEWORD 0x7CD215D8
-#define IDLE_CODEWORD  0x7A89C197   //Segun internet
-//define IDLE_CODEWORD  0x7AC9C197  // Segun la itu
+//#define IDLE_CODEWORD  0x7A89C197   //Segun internet
+#define IDLE_CODEWORD  0x7AC9C197  // Segun la itu
 
 typedef union {
     UINT32 dword;
@@ -49,7 +46,7 @@ typedef union {
 
         unsigned address_HH : 7;
         unsigned messageType : 1;
-    };
+    }; // Estructura de un codeword de tipo address
 
     struct {
         unsigned parity : 1;
@@ -62,19 +59,14 @@ typedef union {
 
         unsigned message_HH : 7;
         unsigned messageType : 1;
-    };
+    }; // Estructura de un codeword de tipo mensaje
 
-} CodeWord;
+} CodeWord_t;
 
 typedef struct {
-    CodeWord codeword_L;
-    CodeWord codeword_H;
-} Frame_t;
-
-/*typedef struct {
-    Frame_t frames[8];
-    CodeWord sc;
-} Batch_t;*/
+        CodeWord_t codeword_L;
+        CodeWord_t codeword_H;
+    } Frame_t;
 
 typedef union {
 
@@ -82,7 +74,7 @@ typedef union {
 
     struct {
         Frame_t frames[8];
-        CodeWord sc;
+        CodeWord_t sc;
     };
 
 } Batch_t;
@@ -96,18 +88,7 @@ typedef enum MsgType {
 
 extern BYTE batchBuffer[NUM_BATCHES*sizeof(Batch_t)];
 
-void pocsag_initBatch(Batch_t *);
-void pocsag_copyFrame2Batch(Frame_t *frame, Batch_t *batch);
-void pocsag_copyCWs2Batch(CodeWord *codeword_H, CodeWord *codeword_L, Batch_t *batch);
-void pocsag_initBatchBuffer(void);
-void formatAddressFrame(Batch_t *, UINT32, UINT8);
-void pocsag_formatNumericMessageCodeWord(CodeWord *, char *);
-UINT16 pocsag_createAlphaMsg(UINT32, char *);
-UINT16 pocsag_createNumericMsg(UINT32 address, char *number,BOOL massSend);
-UINT16 pocsag_createIdleMsg(void);
-void pocsag_calculate_CRC(CodeWord *);
-void pocsag_encodeNumericMessage(char *);
-void pocsag_dumpBatch2Buffer(void);
-void pocsag_printBatchBuffer(void);
+
+UINT16 pocsag_createMsg(UINT32 address, char *data,UINT8 function, BOOL massSend);
 
 #endif 

@@ -112,6 +112,7 @@ void rs232_processLoop(void) {
     char *comando;
     char *parametro1;
     char *parametro2;
+    char *parametro3;
 
 
     if (rs232_dataReceived_flag == 1) {        
@@ -120,22 +121,18 @@ void rs232_processLoop(void) {
         rs232_dataReceived_flag = 0;
 
         rs232Buffer[rs232BufferIndex] = rs232_rxByte;
-        if (rs232BufferIndex < RS232_BUFFER_SIZE-1)        // Evitamos un buffer overflow
+        if (rs232BufferIndex < RS232_BUFFER_SIZE-2)        // Evitamos un buffer overflow.
+                                                           //Ponemos -2 para dejar los 3 ultimos bytes a 0. Ojo! el |Necesario para pocsag_formatAlphaMessageCodeWord()
                 rs232BufferIndex++;
         
 
         if (rs232_rxByte == '\n') {
 
             rs232Buffer[rs232BufferIndex] = '\0';   // Hay que poner el 0 en el ultimo caracter para que STRTOK funcione
-            ui_processBuffer(rs232Buffer, &comando, &parametro1, &parametro2);
-            ui_processCommand(comando, parametro1, parametro2);
+            ui_processBuffer(rs232Buffer, &comando, &parametro1, &parametro2, &parametro3);
+            ui_processCommand(comando, parametro1, parametro2, parametro3);
 
-            rs232BufferIndex = 0;                   // "borramos" el buffer
-
-            
-        }
-
-        
+            rs232BufferIndex = 0;                   // "borramos" el buffer            
+        }        
     }
-
 }

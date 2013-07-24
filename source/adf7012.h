@@ -149,16 +149,8 @@ typedef struct {
 #define adf7012_powerOn() CE=1;
 #define adf7012_powerOff() CE=0;
 
-void adf7012_init(void);
-void adf7012_initRegisters(void);
-void adf7012_configure(BYTE, BYTE, BYTE, BYTE);
-void adf7012_configure24(BYTE, BYTE, BYTE);
-void adf7012_configureRegisters(void);
-void adf7012_setModulation(BYTE);
-void adf7012_setFrequency(UINT32);
-void adf7012_setFSKDeviation(UINT32);
-void adf7012_setPower(BYTE);
-void adf7012_setMuxout(BYTE);
+BOOL adf7012_init(void);
+
 
 
 #endif

@@ -4,7 +4,7 @@
 #include "config.h"
 #include "tools.h"
 
-
+/*
 static const char nybble_chars[] = "0123456789ABCDEF";
 
 
@@ -64,4 +64,4 @@ void delay_s() {
     }
 
 
-}
+}*/

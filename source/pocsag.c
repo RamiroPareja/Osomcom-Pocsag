@@ -17,18 +17,24 @@
 // mensaje y luego lo volcaremos a un array de bytes. Asi, el acceso a los datos
 // sera mucho mas rapido cuando haya que transmitirlos.
 
-//Batch_t batchBuffer[NUM_BATCHES];
 Batch_t batchTmp;
 BYTE batchBuffer[NUM_BATCHES*sizeof(Batch_t)];
 
-BYTE *ptrBatchBuffer;
+void pocsag_initBatch(Batch_t *);
+void pocsag_copyFrame2Batch(Frame_t *frame, Batch_t *batch);
+void pocsag_copyCWs2Batch(CodeWord_t *codeword_H, CodeWord_t *codeword_L, Batch_t *batch);
+void formatAddressFrame(Batch_t *, UINT32, UINT8);
+UINT8 pocsag_formatNumericMessageCodeWord(CodeWord_t *, char *);
+UINT8 pocsag_formatAlphaMessageCodeWord(CodeWord_t *, char *, BOOL init);
+void pocsag_calculate_CRC(CodeWord_t *);
+void pocsag_encodeNumericMessage(char *);
+UINT16 pocsag_dumpBatch2Buffer(BYTE *buffer, Batch_t *batch);
 
 // Funcion que inicializa el batch con todos los frames a Idle
 
 void pocsag_initBatch(Batch_t *batch) {
 
     BYTE i;
-
     
     batch->sc.dword = SYNCH_CODEWORD;
 
@@ -39,27 +45,22 @@ void pocsag_initBatch(Batch_t *batch) {
 
 }
 
-// TODO: Esta copia de codewords, hacerlo a nivel de frames.
-// Poner un UNION del struct frame_t con un UINT64
+// Copia un frame a todos los frames de un batch
 void pocsag_copyFrame2Batch(Frame_t *frame, Batch_t *batch) {
 
     BYTE i;
 
-    batch->sc.dword = SYNCH_CODEWORD;
-
     for (i = 0; i < 8; i++) {
-        batch->frames[i].codeword_L.dword = frame->codeword_L.dword;
         batch->frames[i].codeword_H.dword = frame->codeword_H.dword;
+        batch->frames[i].codeword_L.dword = frame->codeword_L.dword;
     }
 
 }
 
-// Muy parecida a la anterior, pero si algun codeword es NULL, no lo copia
-void pocsag_copyCWs2Batch(CodeWord *codeword_H, CodeWord *codeword_L, Batch_t *batch) {
+// Copia el codeword alto y bajo a todos los frames de un batch. Si algun codeword es NULL, no lo copia
+void pocsag_copyCWs2Batch(CodeWord_t *codeword_H, CodeWord_t *codeword_L, Batch_t *batch) {
 
     BYTE i;
-
-    batch->sc.dword = SYNCH_CODEWORD;
 
     for (i = 0; i < 8; i++) {
         if (codeword_L != NULL)
@@ -70,22 +71,11 @@ void pocsag_copyCWs2Batch(CodeWord *codeword_H, CodeWord *codeword_L, Batch_t *b
     }
 }
 
-/*
-// Funcion que inicializa todo el array de buffers con idles
 
-void pocsag_initBatchBuffer(void) {
 
-    BYTE i;
+// Formatea un codeword como direccion
 
-    for (i = 0; i < NUM_BATCHES; i++) {
-        pocsag_initBatch(&batchBuffer[i]);
-    }
-
-}*/
-
-// Formatea un frame como direccion
-
-void pocsag_formatAddressCodeWord(CodeWord *cw, UINT32 address, UINT8 function) {
+void pocsag_formatAddressCodeWord(CodeWord_t *cw, UINT32 address, UINT8 function) {
 
 
     // Los 3 bits LSB de la direccion indican en que frame hay que usar
@@ -111,7 +101,7 @@ void pocsag_formatAddressCodeWord(CodeWord *cw, UINT32 address, UINT8 function) 
 
 // El parametro *number es un puntero a un array de 5 caracteres numericos
 
-void pocsag_formatNumericMessageCodeWord(CodeWord *cw, char *number) {
+UINT8 pocsag_formatNumericMessageCodeWord(CodeWord_t *cw, char *number) {
 
     cw->dword = 0;
 
@@ -123,194 +113,205 @@ void pocsag_formatNumericMessageCodeWord(CodeWord *cw, char *number) {
     cw->message_L = ((number[3]&0x01) << 4) | (number[4]);
 
     // Calcular CRC y paridad
-    //calculate_CRC(&(batchBuffer->frames[frameNumber].codeword_H));
     pocsag_calculate_CRC(cw);
 
-}
-
-
-//Crea un batch con todos los Frames a idle. 
-//Solo es util para probar si el busca recibe cobertura
-UINT16 pocsag_createIdleMsg(void) {
-
-    pocsag_initBatch(&batchTmp);
-    ptrBatchBuffer = batchBuffer;
-    pocsag_dumpBatch2Buffer();
-
-
-    return 68;
+    return 5;   // Devuelve numero de caracteres procesados
 
 }
 
 
+UINT8 pocsag_formatAlphaMessageCodeWord(CodeWord_t *cw, char *string, BOOL init) {
 
-UINT16 pocsag_createAlphaMsg(UINT32 address, char *string) {
+    static UINT8 i;
 
-    BYTE i;
-    INT8 digitsToTX = strlen(string);    
-    BYTE frameNumber = 7 - (address & 0x00000007);    
-    CodeWord *cw;
+    UINT8 charsProcessed = 0;
+    UINT32 buffer = 0;
+    UINT8 bitCounter = 20;
 
-    pocsag_initBatch(&batchTmp);
-    ptrBatchBuffer = batchBuffer;
+    if (init) {
+        i = 0;
+    }
 
-    //cw = &(batchTmp.frames[frameNumber].codeword_H);
-    //pocsag_formatAddressCodeWord(cw, address, FUNCTION_ALPHA);
+    // Este while hay que refactorizarlo por que me parece cutrisimo
+    do {
 
-      cw = &(batchTmp.frames[0].codeword_H);
-      pocsag_formatAddressCodeWord(cw, address, FUNCTION_ALPHA);
+        for (;i<7;i++) {
 
-      batchTmp.frames[1].codeword_H = batchTmp.frames[0].codeword_H;
-      batchTmp.frames[2].codeword_H = batchTmp.frames[0].codeword_H;
-      batchTmp.frames[3].codeword_H = batchTmp.frames[0].codeword_H;
-      batchTmp.frames[4].codeword_H = batchTmp.frames[0].codeword_H;
-      batchTmp.frames[5].codeword_H = batchTmp.frames[0].codeword_H;
-      batchTmp.frames[6].codeword_H = batchTmp.frames[0].codeword_H;
-      batchTmp.frames[7].codeword_H = batchTmp.frames[0].codeword_H;
+            buffer <<=1;
+            buffer |= *string & 1;
+            (*string)>>=1;
+
+            bitCounter--;
+            if (bitCounter==0) {
+                i++;
+                break;
+            }
+        }
+
+        if (bitCounter==0) {
+            break;
+        }
+
+        i = 0;
+        charsProcessed++;
+        string++;
 
 
+    } while (TRUE);
 
 
-
-    
-    //cw = &(batchTmp.frames[frameNumber].codeword_L);
-    cw = &(batchTmp.frames[0].codeword_L);
     cw->dword = 0;
 
     cw->messageType = 1; // Tipo Mensaje
+     
+    
+    cw->message_L = buffer & 0x1F;  // 5 bits  de menor peso
+    buffer >>=5;
+    cw->message_H = buffer & 0xFF;  // 8 bits de menor peso
+    buffer >>=8;
+    cw->message_HH = buffer & 0x7F;  // 7 bits de menor peso
 
-    for (i=0; i<7; i++) {        
-        cw->message_HH <<=1;
-        
-        if (string[0] & 1)
-            cw->message_HH |= 1;
-        
-        string[0] >>=1;        
-    }
-    
-    for (i=0; i<7; i++) {        
-        cw->message_H <<=1;
-        
-        if (string[1] & 1)
-            cw->message_H |= 1;
-        
-        string[1] >>=1;        
-    }
-    
-    cw->message_H <<=1;
-    
-    cw->message_L = 0;
-
+    // Calcular CRC y paridad
     pocsag_calculate_CRC(cw);
 
-    batchTmp.frames[1].codeword_L = batchTmp.frames[0].codeword_L;
-    batchTmp.frames[2].codeword_L = batchTmp.frames[0].codeword_L;
-    batchTmp.frames[3].codeword_L = batchTmp.frames[0].codeword_L;
-    batchTmp.frames[4].codeword_L = batchTmp.frames[0].codeword_L;
-    batchTmp.frames[5].codeword_L = batchTmp.frames[0].codeword_L;
-    batchTmp.frames[6].codeword_L = batchTmp.frames[0].codeword_L;
-    batchTmp.frames[7].codeword_L = batchTmp.frames[0].codeword_L;
-
-    pocsag_dumpBatch2Buffer();
-
-    for (i = 1; i < 3; i++) {
-
-        pocsag_initBatch(&batchTmp);
-
-
-        pocsag_dumpBatch2Buffer();
-
-    }
-
-    return ptrBatchBuffer - batchBuffer;
-
+    return charsProcessed;   // Devuelve numero de caracteres procesados
 }
 
 
+UINT16 pocsag_createMsg(UINT32 address, char *data, UINT8 function, BOOL massSend) {
+
+    INT8 digitsToTX = strlen(data);
+    UINT8 processedDigits;
+    INT8 frameNumber;
+    UINT16 copiedBytes = 0;
+    CodeWord_t *cw;
+    BOOL highCW = TRUE;
+    UINT8 batchCounter = 1;
+
+    #ifdef DEBUG_RS232
+    UINT16 j;
+    BYTE *ptrTmp;
+    #endif
 
 
-// Crea un mensaje numerico.
-// La funcion controla corta el numero si es mayor de lo que se puede enviar.
-// TO FIX: Si el numero de caracteres que tiene el mensaje numerico no es
-// multiplo de 5, las funciones de formateo de numero desbordaran el puntero.
-// No es grave, pues haran un padding de ceros casi seguro, pero no es nada
-// elegante.
-
-// Devuelve el numero de bytes que ocupa el mensaje en el buffer
-
-UINT16 pocsag_createNumericMsg(UINT32 address, char *number, BOOL massSend) {
-
-    BYTE i;
-    INT8 digitsToTX = strlen(number);    
-    BYTE frameNumber;
-    //BYTE frameNumber = address & 0x00000007;    Invertimos el orden en el que
-                              // Se rellena el array para poder volcar los bytes
-    CodeWord *cw;
 
     pocsag_initBatch(&batchTmp);
-    ptrBatchBuffer = batchBuffer;
 
-
-
+    if (function==FUNCTION_IDLE)
+        return pocsag_dumpBatch2Buffer(batchBuffer, &batchTmp);
 
     frameNumber = 7 - (address & 0x00000007);
     cw = &(batchTmp.frames[frameNumber].codeword_H);
-    pocsag_formatAddressCodeWord(cw, address, FUNCTION_NUMERIC);
+    pocsag_formatAddressCodeWord(cw, address, function);
+
+
     cw = &(batchTmp.frames[frameNumber].codeword_L);
-    pocsag_formatNumericMessageCodeWord(cw, number); // Formateo de los 5 primeros digitos
+
+    if (function==FUNCTION_NUMERIC)
+        processedDigits = pocsag_formatNumericMessageCodeWord(cw, data); // Formateo de los 5 primeros digitos
+    else {
+        digitsToTX++;   // Enviamos el ultimo 0 como fin de mensaje
+        data[digitsToTX]=0;
+
+        data[digitsToTX+1]=0;   // Por la manera en la que funciona pocsag_formatAlphaMessageCodeWord,
+        data[digitsToTX+2]=0;   // tenemos que asegurarnos que los ultimos 3 bytes (caso peor) son ceros
+        processedDigits = pocsag_formatAlphaMessageCodeWord(cw, data, TRUE); // Formateo de los 2.5 primeros digitos
+    }
+
+    digitsToTX -= processedDigits;
 
     if (massSend) {
         // Enviamos el mismo mensaje a los 8 RIC del batch
         pocsag_copyFrame2Batch(&(batchTmp.frames[frameNumber]), &batchTmp);
-    }
-
-
-    digitsToTX -=5;
-
-    pocsag_dumpBatch2Buffer();
-
-    for (i = 1; i < NUM_BATCHES; i++) {
+        pocsag_dumpBatch2Buffer(batchBuffer, &batchTmp);
 
         pocsag_initBatch(&batchTmp);
+        copiedBytes = pocsag_dumpBatch2Buffer(NULL, &batchTmp);
 
-        if (digitsToTX>0) {
-            number += 5;
-            digitsToTX -=5;
-
-            pocsag_formatNumericMessageCodeWord(&(batchTmp.frames[frameNumber].codeword_H), number);
-
-            if (massSend) {
-                pocsag_copyCWs2Batch(&(batchTmp.frames[frameNumber].codeword_H),NULL, &batchTmp);
-            }
-            
+        #ifdef DEBUG_RS232
+        ptrTmp = batchBuffer;
+        for (j=0; j<copiedBytes; j++) {
+            rs232_putch(*ptrTmp);
+            ptrTmp++;
         }
+        rs232_putString("\n\r\n\r");
+        #endif
 
-        if (digitsToTX>0) {
-            number += 5;
-            digitsToTX -=5;
+        
 
-            pocsag_formatNumericMessageCodeWord(&(batchTmp.frames[frameNumber].codeword_L), number);
-
-            if (massSend) {
-                pocsag_copyCWs2Batch(NULL,&(batchTmp.frames[frameNumber].codeword_L), &batchTmp);
-            }
-            
-        }
-
-    pocsag_dumpBatch2Buffer();
-
+        return copiedBytes;
     }
 
-    return ptrBatchBuffer - batchBuffer;
+    while (digitsToTX>0) {
+
+        if (highCW) {
+            frameNumber--;            
+
+            if (frameNumber==-1) {
+                batchCounter++;
+                frameNumber=7;
+                // Siguiente Batch
+                if (copiedBytes==0) {
+                    // No hemos ejecutado antes un dumpBatch. Tenemos que pasarle la direccion del buffer
+                    copiedBytes = pocsag_dumpBatch2Buffer(batchBuffer, &batchTmp);
+                } else
+                    copiedBytes = pocsag_dumpBatch2Buffer(NULL, &batchTmp);
+
+                pocsag_initBatch(&batchTmp);
+            }
+            
+            cw = &(batchTmp.frames[frameNumber].codeword_H);
+        } else {
+            if (frameNumber== 0 && batchCounter==NUM_BATCHES) {
+                //El estandar pocsag dice que al menos hemos de dejar un codeword a idle tras la transmision del mensaje
+                // Comprobamos si estamos en el ultimo codeword del ultimo batch y si es asi, lo dejamos a idle y terminamos
+                // la transmision
+                break;
+            }
+            cw = &(batchTmp.frames[frameNumber].codeword_L);
+        }
+        
+        data += processedDigits;
+
+        if (function==FUNCTION_NUMERIC)
+            processedDigits = pocsag_formatNumericMessageCodeWord(cw, data); // Formateo de los 5 primeros digitos
+        else
+            processedDigits = pocsag_formatAlphaMessageCodeWord(cw, data, FALSE); // Formateo de los 2.5 primeros digitos
+
+        digitsToTX -= processedDigits;
+
+        highCW = !highCW;
+        
+    }
+
+
+    
+        if (copiedBytes==0) {
+            // No hemos ejecutado antes un dumpBatch. Tenemos que pasarle la direccion del buffer
+            copiedBytes = pocsag_dumpBatch2Buffer(batchBuffer, &batchTmp);
+        } else
+            copiedBytes = pocsag_dumpBatch2Buffer(NULL, &batchTmp);
+
+    #ifdef DEBUG_RS232
+    ptrTmp = batchBuffer;
+    for (j=0; j<copiedBytes; j++) {
+        rs232_putch(*ptrTmp);
+        ptrTmp++;
+    }
+    rs232_putString("\n\r\n\r");
+    #endif
+
+    return copiedBytes;
 
 }
+
+
 
 // Si detecta el fin de cadena, hace un padding de espacios
 
 void pocsag_encodeNumericMessage(char *number) {
 
-    BYTE i = 0;
-    BYTE tmp = 0;
+    BYTE i = 0;    
 
     for (; i < 5; i++) {
 
@@ -343,100 +344,16 @@ void pocsag_encodeNumericMessage(char *number) {
     // Hay que hacer un mirror los nibbles por que se empaquetan como LSB en vez de MSB.
     // Tendria que mejorar esto un poco y optimizarlo
     for (i=0; i<5;i++) {
-        tmp = ((number[i] & 1) <<3) | ((number[i] & 2) <<1) | ((number[i] & 4) >>1) | ((number[i] & 8)>>3);
-        number[i] = tmp;
+        number[i] = ((number[i] & 1) <<3) | ((number[i] & 2) <<1) | ((number[i] & 4) >>1) | ((number[i] & 8)>>3);
     }
 
 }
 
 
-//
-//Batch *make_fill_batch(CodeWord RIC,
-//		       char *data, int size_of_data,
-//		       MsgType type)
-//{
-//  Batch* now = NULL;
-//  Batch* top = NULL;
-//  int frame_addr = 0;
-//  int i,j,k = 0;
-//  CodeWord packed_text[100];
-//  int packed_length = 0;
-//
-//  /* Create first batch with address and so on */
-//  now = create_batch();
-//  top = now;  /* Pointer to first batch in the row */
-//
-//  /* Fill in addressframe with address and Function Bits */
-//  frame_addr = RIC & 7; /* Frameaddress == The three LSBits */
-//  now->frame[frame_addr][0] = 0;
-//  now->frame[frame_addr][0] = (RIC >> 3) << 13;
-//
-//  /* Set functionbits according to what type of data */
-//  switch (type)
-//    {
-//    case Tone:    /* Tonecoding just sets functionbits */
-//      printf("Tone:\n");
-//      now->frame[frame_addr][0] &= 0xFFFFE700;
-//      switch(data[0])
-//	{
-//	case 0:
-//	  break;
-//	case 1:
-//	  now->frame[frame_addr][0] |= 0x00000800;
-//	  break;
-//	case 2:
-//	  now->frame[frame_addr][0] |= 0x00001000;
-//	  break;
-//	case 3:
-//	  now->frame[frame_addr][0] |= 0x00001800;
-//	  break;
-//	default:
-//	  fprintf(stderr, "Illegal Tone requested\n");
-//	  exit(1);
-//	}
-//    case Numerical:
-//      /* Don't set any bits */
-//      break;
-//    case Alpha:
-//      now->frame[frame_addr][0] |= 0x00001800;
-//      break;
-//    default:
-//      fprintf(stderr,"Unknown format in make_fill_batch\n");
-//      exit(1);
-//    }
-//
-//  /* Calculate checksumm and parity for address CodeWord */
-//  now->frame[frame_addr][0] = calc_bch_and_parity( now->frame[frame_addr][0] );
-//
-//  /* Start filling in data in frames */
-//  /* Warning very tricky part with i, j and k */
-//  if (type != Tone){  /* But only if it's alpha or numerical */
-//    packed_length = pack_string(packed_text, data, size_of_data, type);
-//    for(i = 0, k = 1, j = frame_addr; i < packed_length; k=0, j++){
-//      for(; k <= 1; k++, i++){
-//	if (i == packed_length) break;
-//	if (j == 8){             /* If we filled a whole batch, */
-//	  j = 0; k = 0;          /* start over with a new batch */
-//	  now->next = create_batch();
-//	  now = now->next;
-//	}
-//	now->frame[j][k] = packed_text[i];
-//	now->frame[j][k] <<= 11; /* Make room for CRC and parity */
-//	now->frame[j][k] |= 0x80000000; /* Set msg CW-bit */
-//	now->frame[j][k] = calc_bch_and_parity( now->frame[j][k] );
-//      }
-//    }
-//  }
-//  return top;
-//}
-//
-//
-///*
-
 
 // Rutina basada en: http://people.kth.se/~e92_spe/projects/pocsag.html
 
-void pocsag_calculate_CRC(CodeWord *codeWord) {
+void pocsag_calculate_CRC(CodeWord_t *codeWord) {
 
     UINT32 cw = (*codeWord).dword;
     UINT32 cwTmp = cw;
@@ -462,59 +379,35 @@ void pocsag_calculate_CRC(CodeWord *codeWord) {
 
 
 }
-//
-///* Returns nuf CodeWord packed down to. Only the 20 LSBits are used in *
-// * CodeWord.                                                           */
-//int pack_string(CodeWord *packed, char *unpacked, int size_up, MsgType type)
-//{
-//  int real_size = 0;
-//  int upi = 0, pi = 0;
-//
-//  switch (type)
-//    {
-//    case Tone:
-//      fprintf(stderr, "Severe Error; Trying to pack Tone data\n");
-//      exit(1);
-//    case Numerical:
-//      real_size = ((size_up/5)+1)*5; /* One CodeWord = 5 BCD's */
-//      for(upi=0, pi=0; upi<real_size; upi++, pi=(upi%5?pi:pi+1)){
-//	if (upi<size_up)
-//	  packed[pi] = (packed[pi]<<4) + (unpacked[upi] & 0x0F);
-//	else
-//	  packed[pi] = (packed[pi]<<4);
-//      }
-//      return real_size/5;
-//    case Alpha:
-//      fprintf(stderr, "Boring Error; I'm not intrested to invent an ");
-//      fprintf(stderr, "algorithm for pack ascii. Quiting!\n");
-//      exit(1);
-//      break;
-//    default:
-//      fprintf(stderr, "Severe Error; Illegal MsgType to pack_string\n");
-//      exit(1);
-//    }
-//  return 0;
-//}
 
 
-void pocsag_dumpBatch2Buffer(void) {
+// Copia el batch indicado al buffer de bytes.
+// Si el puntero buffer es igual a NULL, copia el batch al continuacion de donde
+// se copio el ultimo batch.
+// Devuelve el numero de bytes que ha copiado ya.
+UINT16 pocsag_dumpBatch2Buffer(BYTE *buffer, Batch_t *batch) {
 
-        UINT8 i;
-    BYTE *ptr = &(batchTmp.bytes[67]);
+
+
+    UINT8 i;
+    static UINT16 copiedBytes;
+    static BYTE *ptrTarget;
+    BYTE *ptrSrc = &(batch->bytes[67]);
+
+    if (buffer != NULL) {
+        copiedBytes = 0;
+        ptrTarget = buffer;
+    }
 
     for (i=0;i<68; i++) {
 
-        *ptrBatchBuffer = *ptr;
-        ptrBatchBuffer++;
-        ptr--;
+        *ptrTarget = *ptrSrc;
+        ptrTarget++;
+        ptrSrc--;
+        copiedBytes++;
 
     }
 
-
-}
-
-void pocsag_printBatchBuffer(void) {
-
-
+    return copiedBytes;
 
 }

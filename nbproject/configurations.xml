@@ -7,6 +7,7 @@
       <itemPath>documentation/esquematico.jpg</itemPath>
       <itemPath>documentation/R-REC-M.584-2-199711-I!!PDF-E.pdf</itemPath>
       <itemPath>documentation/estilo.txt</itemPath>
+      <itemPath>documentation/configuracion HDSDR.txt</itemPath>
     </logicalFolder>
     <logicalFolder name="HeaderFiles"
                    displayName="Header Files"
@@ -91,11 +92,11 @@
         <property key="define-macros" value=""/>
         <property key="extra-include-directories" value=""/>
         <property key="identifier-length" value="255"/>
-        <property key="operation-mode" value="free"/>
+        <property key="operation-mode" value="std"/>
         <property key="opt-xc8-compiler-strict_ansi" value="false"/>
         <property key="optimization-assembler" value="true"/>
-        <property key="optimization-assembler-files" value="false"/>
-        <property key="optimization-debug" value="true"/>
+        <property key="optimization-assembler-files" value="true"/>
+        <property key="optimization-debug" value="false"/>
         <property key="optimization-global" value="true"/>
         <property key="optimization-level" value="9"/>
         <property key="optimization-set" value="default"/>

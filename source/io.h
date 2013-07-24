@@ -52,7 +52,6 @@
 
 
 void io_processLoop(void);
-void led_blinkStatus(void);
 
 
 
